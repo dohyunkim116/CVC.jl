@@ -3,13 +3,20 @@ on:
   schedule:
     - cron: 0 0 * * *
   workflow_dispatch:
+
 jobs:
   CompatHelper:
     runs-on: ubuntu-latest
     steps:
-      - name: Pkg.add("CompatHelper")
+      - name: Install CompatHelper
         run: julia -e 'using Pkg; Pkg.add("CompatHelper")'
-      - name: CompatHelper.main()
+
+      - name: Debug Registry Information
+        run: |
+          julia -e 'using Pkg; Pkg.Registry.update()'
+          julia -e 'using Pkg; println(Pkg.Registry.installed())'
+
+      - name: Run CompatHelper
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COMPATHELPER_PRIV: ${{ secrets.DOCUMENTER_KEY }}
