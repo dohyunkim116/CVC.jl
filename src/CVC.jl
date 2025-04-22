@@ -160,11 +160,14 @@ struct cvc{TT <: Real, T <: Real}
     model       :: Symbol
     datapath    :: String # data path containing plink1 genotype file set, and covaraite matrix file
     temp_dir    :: String # temporary directory for storing memory-mapped files
+    N           :: Int
+    Mtotal      :: Int
+    C           :: Int
     K           :: Int
     J           :: Int
+    B           :: Int
     M           :: Matrix{Int}
     M̃           :: Matrix{Int}
-    B           :: Int
     M_k         :: Vector{Int}
     maf_mat_jack:: Matrix{T}
     # parameters
@@ -245,17 +248,18 @@ function cvc(
     ) where {TT}
     @assert length(ỹ) == length(δ) "Lengths of ỹ and δ should be same"
     T        = Float32
-    n        = get_N(datapath)
+    N        = get_N(datapath)
     K        = filter(contains(r"G\d+.bed"), readdir(datapath)) |> length
     sa_array = Array{SnpArray,1}(undef, K)
-    construct_sa_array!(sa_array, datapath, n, K)
+    construct_sa_array!(sa_array, datapath, N, K)
     censored = true
-    cr = round((n - count(δ)) / n, sigdigits = 2)
+    cr = round((N - count(δ)) / N, sigdigits = 2)
     sla_array = Array{SnpLinAlg{T}, 1}(undef, K);
     construct_sla_array!(sla_array, sa_array, K)
     M_k      = Vector{Int}(undef, K)
     M_k     .= get_Mₖ.(1:K, datapath)
-    
+    Mtotal = sum(M_k)
+    C = size(w, 2)
     # Dynamically adjust J if any component has fewer SNPs than J
     min_M_k = minimum(M_k)
     if min_M_k <= J
@@ -269,7 +273,7 @@ function cvc(
     M̃        = similar(M)
     M̃       .= M_k .- M
     maf_mat_jack = Matrix{T}(undef, K, J + 1)
-    ŷ        = Vector{TT}(undef, n)
+    ŷ        = Vector{TT}(undef, N)
     if !iszero(w)
         w = convert(Matrix{Float64}, w)
         F        = svd(w)
@@ -299,18 +303,18 @@ function cvc(
     h2k_nn       = Vector{T}(undef, K + 1)
     h2kse_nn     = Vector{T}(undef, K + 1)
     Jack_nn   = Matrix{T}(undef, K + 1, J + 1)
-    ystar1    = Vector{T}(undef, n)
-    ystar2    = Vector{T}(undef, n)
+    ystar1    = Vector{T}(undef, N)
+    ystar2    = Vector{T}(undef, N)
     km        = KaplanMeier(ỹ, δ, TS = T)
     kmc       = KaplanMeier(ỹ, .!δ, TS = T)
     cec = intgrl(kmc)
     cec2 = intgrl2(kmc)
     trYstarV  = Vector{T}(undef, 1)
-    HHtystar1 = Vector{T}(undef, n)
+    HHtystar1 = Vector{T}(undef, N)
     H̃         = similar(H)
-    d         = Vector{T}(undef, n)
-    randZ    = Matrix{T}(undef, n, B)
-    randZ̃    = Matrix{T}(undef, n, B)
+    d         = Vector{T}(undef, N)
+    randZ    = Matrix{T}(undef, N, B)
+    randZ̃    = Matrix{T}(undef, N, B)
     L̃_0     = zeros(T, K)
     L̃     = zeros(T, K, J)
     R̃_0     = zeros(T, K)
@@ -321,25 +325,25 @@ function cvc(
     F̃     = zeros(T, K, J)
     Ṽ_0     = zeros(T, K)
     Ṽ     = zeros(T, K, J)
-    Q̃_0     = Matrix{T}(undef, n, K)
+    Q̃_0     = Matrix{T}(undef, N, K)
     fill!(Q̃_0, zero(T))
     Q̃_kj_array = Array{Matrix{T},1}(undef, J)
     for j in 1:J
-        Q̃_kj_array[j] = Matrix{T}(undef, n, K)
+        Q̃_kj_array[j] = Matrix{T}(undef, N, K)
         fill!(Q̃_kj_array[j], zero(T))
     end
     
-    U_0 = Array{T,3}(undef, n, B, K)
+    U_0 = Array{T,3}(undef, N, B, K)
     fill!(U_0, zero(T))
-    Ũ_0 = Array{T,3}(undef, n, B, K)
+    Ũ_0 = Array{T,3}(undef, N, B, K)
     fill!(Ũ_0, zero(T))
-    HHtU_0 = Array{T,3}(undef, n, B, K)
+    HHtU_0 = Array{T,3}(undef, N, B, K)
     fill!(HHtU_0, zero(T))
 
     U_kj_array = Array{AbstractArray{T}, 1}(undef, J)
     Ũ_kj_array = Array{AbstractArray{T}, 1}(undef, J)
-    mmap_U_kj_array!(U_kj_array, n, B, K, temp_dir_path, parallel = true)
-    mmap_Ũ_kj_array!(Ũ_kj_array, n, B, K, temp_dir_path, parallel = true)
+    mmap_U_kj_array!(U_kj_array, N, B, K, temp_dir_path, parallel = true)
+    mmap_Ũ_kj_array!(Ũ_kj_array, N, B, K, temp_dir_path, parallel = true)
 
     HtU_jl    = Matrix{T}(undef, size(H, 2), B)
     HHtU_jl  = similar(randZ)
@@ -356,7 +360,7 @@ function cvc(
     update_HHtystar!(HHtystar1, H, ystar1)
 
     cvc{TT, T}(
-        ỹ, δ, cr, model, datapath, temp_dir_path, K, J, M, M̃, B, M_k, maf_mat_jack,
+        ỹ, δ, cr, model, datapath, temp_dir_path, N, Mtotal, C, K, J, B, M, M̃, M_k, maf_mat_jack,
         isfitted, ϕg, ϕe, ϕ, ϕse, h2, h2se, h2k, h2kse, Jack,
         ϕg_nn, ϕe_nn, ϕ_nn, ϕse_nn, h2_nn, h2se_nn, h2k_nn, h2kse_nn, Jack_nn,
         ystar1, ystar2, km, kmc, cec, cec2,
