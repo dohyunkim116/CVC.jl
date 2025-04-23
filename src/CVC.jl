@@ -253,7 +253,7 @@ function cvc(
     sa_array = Array{SnpArray,1}(undef, K)
     construct_sa_array!(sa_array, datapath, N, K)
     censored = true
-    cr = round((N - count(δ)) / N, sigdigits = 2)
+    cr = round((N - count(δ)) / N, digits = 4)
     sla_array = Array{SnpLinAlg{T}, 1}(undef, K);
     construct_sla_array!(sla_array, sa_array, K)
     M_k      = Vector{Int}(undef, K)
