@@ -169,7 +169,6 @@ struct cvc{TT <: Real, T <: Real}
     M           :: Matrix{Int}
     M̃           :: Matrix{Int}
     M_k         :: Vector{Int}
-    maf_mat_jack:: Matrix{T}
     # parameters
     isfitted    :: Vector{Bool}
     ϕg          :: Vector{TT}
@@ -190,6 +189,10 @@ struct cvc{TT <: Real, T <: Real}
     h2k_nn      :: Vector{TT}
     h2kse_nn    :: Vector{TT}
     Jack_nn        :: Matrix{T}
+    h2l         :: Vector{TT}     # Total heritability on liability scale
+    h2lse       :: Vector{TT}     # SE of total heritability on liability scale
+    h2l_nn      :: Vector{TT}     # NNLS total heritability on liability scale
+    h2lse_nn    :: Vector{TT}     # NNLS SE of total heritability on liability scale
     # synthetic variables
     ystar1      :: Vector{TT}      # first moment synthetic variable E(y⋆)=E(y)
     ystar2      :: Vector{TT}      # second moment synthetic variable E(y⋆²)=E(y²)
@@ -236,15 +239,59 @@ struct cvc{TT <: Real, T <: Real}
     sla_array   :: Array{SnpLinAlg, 1}
 end
 
+# Add this function after the definition of cvc struct
+"""
+    h2_observed_to_liability(h2_obs, PP, SP)
+
+Transform heritability from observed to liability scale.
+- h2_obs: heritability on the observed scale
+- PP: population prevalence
+- SP: sample prevalence
+"""
+function h2_observed_to_liability(h2_obs::T, PP::Real, SP::Real) where T <: Real
+    if PP ≈ 0.0 || PP ≈ 1.0 || SP ≈ 0.0 || SP ≈ 1.0
+        return h2_obs  # Return observed heritability if PP or SP are at boundaries
+    end
+    
+    # Calculate threshold from population prevalence PP
+    threshold = quantile(Normal(), 1.0 - PP)
+    
+    # Height of the normal pdf at threshold
+    z = pdf(Normal(), threshold)
+    
+    # Transform formula
+    h2_liability = h2_obs * PP^2 * (1.0 - PP)^2 / (SP * (1.0 - SP) * z^2)
+    
+    return h2_liability
+end
+
+# For vectors
+function h2_observed_to_liability(h2_obs::Vector{T}, PP::Real, SP::Real) where T <: Real
+    return map(h2 -> h2_observed_to_liability(h2, PP, SP), h2_obs)
+end
+
+function synthetic_binary!(
+    ystar1::AbstractVector{T},
+    ystar2::AbstractVector{T},
+    y::AbstractVector{S}
+    ) where {T <: Real, S <: Real}
+    
+    n = length(y)
+    ystar1 .= y                # First moment is just the binary outcome
+    ystar2 .= y .* y           # Second moment is y² (same as y for binary 0/1 data)
+    
+    return ystar1, ystar2
+end
+
 function cvc(
     ỹ            :: AbstractVector{TT},
     δ            :: Union{Vector{Bool}, BitVector},
     w            :: AbstractArray,
     datapath     :: String,
     tempdir_parent     :: AbstractString;
-    model = :tte,
-    J = 100,     # Allow customizing initial number of jackknife blocks
-    B = 10       # Allow customizing number of random vectors
+    model = :tte,  # Now explicitly supports :tte and :binary
+    J = 100,
+    B = 10
     ) where {TT}
     @assert length(ỹ) == length(δ) "Lengths of ỹ and δ should be same"
     T        = Float32
@@ -252,14 +299,16 @@ function cvc(
     K        = filter(contains(r"G\d+.bed"), readdir(datapath)) |> length
     sa_array = Array{SnpArray,1}(undef, K)
     construct_sa_array!(sa_array, datapath, N, K)
-    censored = true
+    
     cr = round((N - count(δ)) / N, digits = 4)
+    
     sla_array = Array{SnpLinAlg{T}, 1}(undef, K);
     construct_sla_array!(sla_array, sa_array, K)
     M_k      = Vector{Int}(undef, K)
     M_k     .= get_Mₖ.(1:K, datapath)
     Mtotal = sum(M_k)
     C = size(w, 2)
+    
     # Dynamically adjust J if any component has fewer SNPs than J
     min_M_k = minimum(M_k)
     if min_M_k <= J
@@ -272,8 +321,8 @@ function cvc(
     compute_M!(M, M_k, K, J)
     M̃        = similar(M)
     M̃       .= M_k .- M
-    maf_mat_jack = Matrix{T}(undef, K, J + 1)
-    ŷ        = Vector{TT}(undef, N)
+    ŷ        = Vector{TT}(undef, N)
+    
     if !iszero(w)
         w = convert(Matrix{Float64}, w)
         F        = svd(w)
@@ -303,8 +352,10 @@ function cvc(
     h2k_nn       = Vector{T}(undef, K + 1)
     h2kse_nn     = Vector{T}(undef, K + 1)
     Jack_nn   = Matrix{T}(undef, K + 1, J + 1)
-    ystar1    = Vector{T}(undef, N)
-    ystar2    = Vector{T}(undef, N)
+    h2l      = Vector{T}(undef, 1)
+    h2lse    = Vector{T}(undef, 1)
+    h2l_nn   = Vector{T}(undef, 1)
+    h2lse_nn = Vector{T}(undef, 1)
     km        = KaplanMeier(ỹ, δ, TS = T)
     kmc       = KaplanMeier(ỹ, .!δ, TS = T)
     cec = intgrl(kmc)
@@ -350,7 +401,24 @@ function cvc(
 
     ŨZ̃̃ = similar(Ũ_0)
     trPKₖPYstar_array = Array{T, 3}(undef, 1, 1, K)
-    synthetic!(ystar1, ystar2, ỹ, δ, kmc, cec, cec2)
+
+    ystar1    = Vector{T}(undef, N)
+    ystar2    = Vector{T}(undef, N)
+
+    if model == :tte
+        km        = KaplanMeier(ỹ, δ, TS = T)
+        kmc       = KaplanMeier(ỹ, .!δ, TS = T)
+        cec = intgrl(kmc)
+        cec2 = intgrl2(kmc)
+        synthetic!(ystar1, ystar2, ỹ, δ, kmc, cec, cec2)
+    else  # :binary
+        km        = KaplanMeier(ỹ, δ, fit = false, TS = T)
+        kmc       = KaplanMeier(ỹ, .!δ, fit = false, TS = T)  # Empty KaplanMeier object
+        cec = Vector{T}(undef, 0)
+        cec2 = Vector{T}(undef, 0)
+        synthetic_binary!(ystar1, ystar2, ỹ)
+    end
+    
     ystar1 = convert(Vector{T}, ystar1)
     ystar2 = convert(Vector{T}, ystar2)
     d .= ystar2 .- ystar1.^2
@@ -360,9 +428,10 @@ function cvc(
     update_HHtystar!(HHtystar1, H, ystar1)
 
     cvc{TT, T}(
-        ỹ, δ, cr, model, datapath, temp_dir_path, N, Mtotal, C, K, J, B, M, M̃, M_k, maf_mat_jack,
+        ỹ, δ, cr, model, datapath, temp_dir_path, N, Mtotal, C, K, J, B, M, M̃, M_k,
         isfitted, ϕg, ϕe, ϕ, ϕse, h2, h2se, h2k, h2kse, Jack,
         ϕg_nn, ϕe_nn, ϕ_nn, ϕse_nn, h2_nn, h2se_nn, h2k_nn, h2kse_nn, Jack_nn,
+        h2l, h2lse, h2l_nn, h2lse_nn,
         ystar1, ystar2, km, kmc, cec, cec2,
         ŷ, w, trYstarV,
         H, HHtystar1, H̃, d, randZ, randZ̃,
@@ -401,16 +470,54 @@ paramnames_pt(m::cvc) = [["h2_$k" for k in 1:m.K]; "h2_e"; "h2"]
 paramnames_se(m::cvc) = [["h2_$(k)_se" for k in 1:m.K]; "h2_e_se"; "h2_se"]
 paramnames(m::cvc) = [paramnames_pt(m); paramnames_se(m)]
 
-function paramtable(m::cvc; nnls = false)
-    if nnls
-        pars = params(m; nnls)
-    else
-        pars = params(m; nnls)
+function params_liability_pt(m::cvc; nnls = false)
+    # Only return liability-scale params for binary models
+    if m.model !== :binary
+        return Float32[]
     end
-    hcat(paramnames(m), pars)
+    
+    if nnls
+        pt_est_vec = m.h2l_nn
+    else 
+        pt_est_vec = m.h2l
+    end
+    pt_est_vec
+end
+
+function params_liability_se(m::cvc; nnls = false)
+    # Only return liability-scale params for binary models
+    if m.model !== :binary
+        return Float32[]
+    end
+    
+    if nnls
+        se_est_vec = m.h2lse_nn
+    else 
+        se_est_vec = m.h2lse
+    end
+    se_est_vec
+end
+
+function params_liability(m::cvc; nnls = false)
+    [params_liability_pt(m; nnls = nnls); params_liability_se(m; nnls = nnls)]
+end
+
+# Update liability scale param names to only include total heritability
+paramnames_liability_pt(m::cvc) = ["h2l"]
+paramnames_liability_se(m::cvc) = ["h2l_se"]
+paramnames_liability(m::cvc) = [paramnames_liability_pt(m); paramnames_liability_se(m)]
+
+
+function coef_liability(m::cvc; nnls = false)
+    if nnls
+        hcat(m.h2l_nn, m.h2lse_nn)
+    else
+        hcat(m.h2l, m.h2lse)
+    end
 end
 
 coefnames(m::cvc)= [["h2_$k" for k in 1:m.K]; "h2_e"; "h2"]
+coefnames_liability(m::cvc) = ["h2l"]
 
 function coef(m::cvc; nnls = false)
     if nnls
@@ -419,24 +526,30 @@ function coef(m::cvc; nnls = false)
         hcat([m.h2k; m.h2],[m.h2kse; m.h2se])
     end
 end
-nobs(m::cvc) = length(m.ỹ)
-ncens(m::cvc) = nobs(m) - count(m.δ)
-propcens(m::cvc) = m.model == :tte ? round(ncens(m) / nobs(m), sigdigits = 2) : 0
+
+nobs(m::cvc) = length(m.ỹ)
+ncens(m::cvc) = m.model == :tte ? nobs(m) - count(m.δ) : 0
+propcens(m::cvc) = m.model == :tte ? round(ncens(m) / nobs(m), sigdigits = 2) : 0.0
 ngpred(m::cvc) = sum(m.M_k)
 nfpred(m::cvc) = iszero(m.w) ? 0 : size(m.w, 2)
 ngcomp(m::cvc) = m.K
 
 function coeftable(m::cvc; nnls = false)
-    if nnls
-        mcoefs = coef(m; nnls)
+    if m.model == :binary
+        # Use liability scale coefficients for binary traits (total heritability only)
+        mcoefs = coef_liability(m; nnls = nnls)
+        names = coefnames_liability(m)
     else
-        mcoefs = coef(m)
+        # Use regular coefficients for other models (e.g., :tte)
+        mcoefs = coef(m; nnls = nnls)
+        names = coefnames(m)
     end
+    
     StatsModels.CoefTable(
         mcoefs,
         ["Estimate", "SE"],
-        coefnames(m)
-        )
+        names
+    )
 end
 
 function Base.show(io::IO, m::cvc)
@@ -445,19 +558,42 @@ function Base.show(io::IO, m::cvc)
         return nothing
     end
     println(io)
-    println(io, "Censored variance component model by synthetic variables")
+    
+    # Display model type
+    if m.model == :tte
+        println(io, "Censored variance component model by synthetic variables")
+    elseif m.model == :binary
+        println(io, "Binary trait variance component model using liability threshold model")
+    else
+        error("Unknown model type: $(m.model)")
+    end
+    
     println(io)
     println(io, "Number of observations: $(nobs(m))")
-    println(io, "Right-censored: $(ncens(m)) ($(round(propcens(m) * 100, digits = 2))% of observations)")
+    
+    # Only show censoring info for TTE models
+    if m.model == :tte
+        println(io, "Right-censored: $(ncens(m)) ($(round(propcens(m) * 100, digits = 4))% of observations)")
+    end
+    
+    # Show prevalence info for binary models
+    if m.model == :binary
+        println(io, "Disease prevalence: $(round((1.0 - m.cr) * 100, digits = 4))%")
+    end
+    
     println(io, "Number of genotypes: $(ngpred(m))")
     println(io, "Number of covariates: $(nfpred(m)) (including the intercept)")
     println(io, "Number of genetic components: $(ngcomp(m))")
     println(io)
-    println(io, "Regression coefficients without nonnegativity constraints:")
+    
+    # For binary model, we'll show liability scale heritability
+    # For other models, we'll show observed scale heritability
+    println(io, "Heritability estimates without nonnegativity constraints:")
     show(io, coeftable(m))
+    
     println(io)
     println(io)
-    println(io, "Regression coefficients with nonnegativity constraints:")
+    println(io, "Heritability estimates with nonnegativity constraints:")
     show(io, coeftable(m; nnls = true))
     println(io)
 end
@@ -468,58 +604,9 @@ function get_start_end_Gₖʲ(m::cvc, k, j)
     s, e
 end
 
-function update_maf_mat_jack!(m::cvc{TT, T}) where {TT, T}
-    mafk_array = Array{Vector{T}, 1}(undef, m.K)
-    for k in 1:m.K
-        mafk_array[k] = maf(m.sa_array[k])
-    end
-    maf_sum_k = sum.(mafk_array)
-    temp_mat = Matrix{T}(undef, m.J, m.K)
-    for k in 1:m.K
-        for j in 1:m.J
-            s, e = get_start_end_Gₖʲ(m, k, j)
-            temp_mat[j,k] = sum(@view(mafk_array[k][s:e]))
-        end
-    end
-    temp_mat .= (Transpose(maf_sum_k) .- temp_mat) ./ Transpose(m.M̃)
-    copyto!(m.maf_mat_jack, Transpose(temp_mat))
-    @views m.maf_mat_jack[:, m.J + 1] .= maf_sum_k ./ m.M_k
-    return m.maf_mat_jack
-end
-
-function __set_estimates!(
-    m::cvc{TT, T},
-    nnls::Bool,
-    Jack::Matrix{T},
-    h2_rowvec::Matrix{T},
-    h2e_rowvec::Matrix{T},
-    H2::Matrix{T},
-    E::Matrix{T},
-    B::Matrix{T}
-    ) where {TT, T}
-    if nnls
-        m.ϕg_nn .= Jack[1:m.K, m.J + 1]
-        m.ϕe_nn .= Jack[m.K+1, m.J + 1]
-        m.ϕ_nn .= [m.ϕg_nn ; m.ϕe_nn]
-        copyto!(m.ϕse_nn, std(@view(Jack[:, 1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
-        m.h2_nn .= h2_rowvec[1, m.J + 1]
-        m.h2se_nn .= std(@view(h2_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
-        copyto!(m.h2k_nn, @view(H2[:, m.J+1]))
-        m.h2k_nn[m.K + 1] = h2e_rowvec[1, m.J + 1]
-        copyto!(m.h2kse_nn, std(@view(H2[:,1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
-        m.h2kse_nn[m.K + 1] = std(@view(h2e_rowvec[1, 1:m.J]), corrected = false) * sqrt(m.J - 1)
-    else
-        m.ϕg .= Jack[1:m.K, m.J + 1]
-        m.ϕe .= Jack[m.K+1, m.J + 1]
-        m.ϕ .= [m.ϕg ; m.ϕe]
-        copyto!(m.ϕse, std(@view(Jack[:, 1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
-        m.h2 .= h2_rowvec[1, m.J + 1]
-        m.h2se .= std(@view(h2_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
-        copyto!(m.h2k, @view(H2[:, m.J+1]))
-        m.h2k[m.K + 1] = h2e_rowvec[1, m.J + 1]
-        copyto!(m.h2kse, std(@view(H2[:,1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
-        m.h2kse[m.K + 1] = std(@view(h2e_rowvec[1, 1:m.J]), corrected = false) * sqrt(m.J - 1)
-    end
+function set_estimates!(m::cvc{TT, T}) where {TT, T}
+    _set_estimates!(m, false)
+    _set_estimates!(m, true)
 end
 
 function _set_estimates!(
@@ -555,16 +642,53 @@ function _set_estimates!(
         mul!(𝚽tildeg, transpose(Ĩ), Ĩ𝚽g)
         H2 .= 𝚽tildeg ./ totalvar_rowvec
     end
-    E = H2 ./ h2_rowvec ./ M̃plus .* M_rowvec
-    update_maf_mat_jack!(m)
-    B = (H2 .* totalvar_rowvec) ./ M̃plus ./ (2 .* m.maf_mat_jack .* (1 .- m.maf_mat_jack))
-    
-    __set_estimates!(m, nnls, Jack, h2_rowvec, h2e_rowvec, H2, E, B)
+    __set_estimates!(m, nnls, Jack, h2_rowvec, h2e_rowvec, H2)
+    __set_h2l_estimates!(m, nnls, h2_rowvec)
 end
 
-function set_estimates!(m::cvc{TT, T}) where {TT, T}
-    _set_estimates!(m, false)
-    _set_estimates!(m, true)
+function __set_estimates!(
+    m::cvc{TT, T},
+    nnls::Bool,
+    Jack::Matrix{T},
+    h2_rowvec::Matrix{T},
+    h2e_rowvec::Matrix{T},
+    H2::Matrix{T}
+    ) where {TT, T}
+    if nnls
+        m.ϕg_nn .= Jack[1:m.K, m.J + 1]
+        m.ϕe_nn .= Jack[m.K+1, m.J + 1]
+        m.ϕ_nn .= [m.ϕg_nn ; m.ϕe_nn]
+        copyto!(m.ϕse_nn, std(@view(Jack[:, 1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
+        m.h2_nn .= h2_rowvec[1, m.J + 1]
+        m.h2se_nn .= std(@view(h2_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
+        copyto!(m.h2k_nn, @view(H2[:, m.J+1]))
+        m.h2k_nn[m.K + 1] = h2e_rowvec[1, m.J + 1]
+        copyto!(m.h2kse_nn, std(@view(H2[:,1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
+        m.h2kse_nn[m.K + 1] = std(@view(h2e_rowvec[1, 1:m.J]), corrected = false) * sqrt(m.J - 1)
+    else
+        m.ϕg .= Jack[1:m.K, m.J + 1]
+        m.ϕe .= Jack[m.K+1, m.J + 1]
+        m.ϕ .= [m.ϕg ; m.ϕe]
+        copyto!(m.ϕse, std(@view(Jack[:, 1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
+        m.h2 .= h2_rowvec[1, m.J + 1]
+        m.h2se .= std(@view(h2_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
+        copyto!(m.h2k, @view(H2[:, m.J+1]))
+        m.h2k[m.K + 1] = h2e_rowvec[1, m.J + 1]
+        copyto!(m.h2kse, std(@view(H2[:,1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
+        m.h2kse[m.K + 1] = std(@view(h2e_rowvec[1, 1:m.J]), corrected = false) * sqrt(m.J - 1)
+    end
+end
+
+function __set_h2l_estimates!(m::cvc, nnls::Bool, h2_rowvec::Matrix{T}) where T
+    L = quantile(Normal(), m.cr)
+    h2l_rowvec = m.cr .* (1 .- m.cr) .* h2_rowvec ./ pdf(Normal(), L).^2
+    if nnls
+        m.h2l_nn .= h2l_rowvec[1, m.J + 1]
+        m.h2lse_nn .= std(@view(h2l_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
+    else
+        m.h2l .= h2l_rowvec[1, m.J + 1]
+        m.h2lse .= std(@view(h2l_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
+    end
 end
 
 include("fit.jl")
