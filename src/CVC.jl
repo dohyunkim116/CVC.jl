@@ -193,6 +193,10 @@ struct cvc{TT <: Real, T <: Real}
     h2lse       :: Vector{TT}     # SE of total heritability on liability scale
     h2l_nn      :: Vector{TT}     # NNLS total heritability on liability scale
     h2lse_nn    :: Vector{TT}     # NNLS SE of total heritability on liability scale
+    h2kl        :: Vector{TT}     # Component-specific heritability on liability scale
+    h2klse      :: Vector{TT}     # SE of component-specific heritability on liability scale
+    h2kl_nn     :: Vector{TT}     # NNLS component-specific heritability on liability scale
+    h2klse_nn   :: Vector{TT}     # NNLS SE of component-specific heritability on liability scale
     # synthetic variables
     ystar1      :: Vector{TT}      # first moment synthetic variable E(y⋆)=E(y)
     ystar2      :: Vector{TT}      # second moment synthetic variable E(y⋆²)=E(y²)
@@ -237,37 +241,6 @@ struct cvc{TT <: Real, T <: Real}
     trPKₖPYstar_array :: Array{T, 3}
     sa_array   :: Array{SnpArray, 1}
     sla_array   :: Array{SnpLinAlg, 1}
-end
-
-# Add this function after the definition of cvc struct
-"""
-    h2_observed_to_liability(h2_obs, PP, SP)
-
-Transform heritability from observed to liability scale.
-- h2_obs: heritability on the observed scale
-- PP: population prevalence
-- SP: sample prevalence
-"""
-function h2_observed_to_liability(h2_obs::T, PP::Real, SP::Real) where T <: Real
-    if PP ≈ 0.0 || PP ≈ 1.0 || SP ≈ 0.0 || SP ≈ 1.0
-        return h2_obs  # Return observed heritability if PP or SP are at boundaries
-    end
-    
-    # Calculate threshold from population prevalence PP
-    threshold = quantile(Normal(), 1.0 - PP)
-    
-    # Height of the normal pdf at threshold
-    z = pdf(Normal(), threshold)
-    
-    # Transform formula
-    h2_liability = h2_obs * PP^2 * (1.0 - PP)^2 / (SP * (1.0 - SP) * z^2)
-    
-    return h2_liability
-end
-
-# For vectors
-function h2_observed_to_liability(h2_obs::Vector{T}, PP::Real, SP::Real) where T <: Real
-    return map(h2 -> h2_observed_to_liability(h2, PP, SP), h2_obs)
 end
 
 function synthetic_binary!(
@@ -356,6 +329,10 @@ function cvc(
     h2lse    = Vector{T}(undef, 1)
     h2l_nn   = Vector{T}(undef, 1)
     h2lse_nn = Vector{T}(undef, 1)
+    h2kl      = Vector{T}(undef, K + 1)
+    h2klse    = Vector{T}(undef, K + 1)
+    h2kl_nn   = Vector{T}(undef, K + 1)
+    h2klse_nn = Vector{T}(undef, K + 1)
     km        = KaplanMeier(ỹ, δ, TS = T)
     kmc       = KaplanMeier(ỹ, .!δ, TS = T)
     cec = intgrl(kmc)
@@ -431,7 +408,7 @@ function cvc(
         ỹ, δ, cr, model, datapath, temp_dir_path, N, Mtotal, C, K, J, B, M, M̃, M_k,
         isfitted, ϕg, ϕe, ϕ, ϕse, h2, h2se, h2k, h2kse, Jack,
         ϕg_nn, ϕe_nn, ϕ_nn, ϕse_nn, h2_nn, h2se_nn, h2k_nn, h2kse_nn, Jack_nn,
-        h2l, h2lse, h2l_nn, h2lse_nn,
+        h2l, h2lse, h2l_nn, h2lse_nn, h2kl, h2klse, h2kl_nn, h2klse_nn,
         ystar1, ystar2, km, kmc, cec, cec2,
         ŷ, w, trYstarV,
         H, HHtystar1, H̃, d, randZ, randZ̃,
@@ -443,6 +420,54 @@ function cvc(
         sa_array, sla_array
         )
 end
+
+function params_liability_pt(m::cvc; nnls = false)
+    # Only return liability-scale params for binary models
+    if m.model !== :binary
+        return Float32[]
+    end
+    
+    if nnls
+        pt_est_vec = [m.h2kl_nn; m.h2l_nn]
+    else 
+        pt_est_vec = [m.h2kl; m.h2l]
+    end
+    pt_est_vec
+end
+
+function params_liability_se(m::cvc; nnls = false)
+    # Only return liability-scale params for binary models
+    if m.model !== :binary
+        return Float32[]
+    end
+    
+    if nnls
+        se_est_vec = [m.h2klse_nn; m.h2lse_nn]
+    else 
+        se_est_vec = [m.h2klse; m.h2lse]
+    end
+    se_est_vec
+end
+
+function params_liability(m::cvc; nnls = false)
+    [params_liability_pt(m; nnls = nnls); params_liability_se(m; nnls = nnls)]
+end
+
+# Update parameter names to include component-specific names
+paramnames_liability_pt(m::cvc) = [["h2l_$k" for k in 1:m.K]; "h2l_e"; "h2l"]
+paramnames_liability_se(m::cvc) = [["h2l_$(k)_se" for k in 1:m.K]; "h2l_e_se"; "h2l_se"]
+paramnames_liability(m::cvc) = [paramnames_liability_pt(m); paramnames_liability_se(m)]
+
+function coef_liability(m::cvc; nnls = false)
+    # Always include component-specific heritabilities
+    if nnls
+        hcat([m.h2kl_nn; m.h2l_nn],[m.h2klse_nn; m.h2lse_nn])
+    else
+        hcat([m.h2kl; m.h2l],[m.h2klse; m.h2lse])
+    end
+end
+
+coefnames_liability(m::cvc) = [["h2l_$k" for k in 1:m.K]; "h2l_e"; "h2l"]
 
 function params_pt(m::cvc; nnls = false)
     if nnls
@@ -470,54 +495,7 @@ paramnames_pt(m::cvc) = [["h2_$k" for k in 1:m.K]; "h2_e"; "h2"]
 paramnames_se(m::cvc) = [["h2_$(k)_se" for k in 1:m.K]; "h2_e_se"; "h2_se"]
 paramnames(m::cvc) = [paramnames_pt(m); paramnames_se(m)]
 
-function params_liability_pt(m::cvc; nnls = false)
-    # Only return liability-scale params for binary models
-    if m.model !== :binary
-        return Float32[]
-    end
-    
-    if nnls
-        pt_est_vec = m.h2l_nn
-    else 
-        pt_est_vec = m.h2l
-    end
-    pt_est_vec
-end
-
-function params_liability_se(m::cvc; nnls = false)
-    # Only return liability-scale params for binary models
-    if m.model !== :binary
-        return Float32[]
-    end
-    
-    if nnls
-        se_est_vec = m.h2lse_nn
-    else 
-        se_est_vec = m.h2lse
-    end
-    se_est_vec
-end
-
-function params_liability(m::cvc; nnls = false)
-    [params_liability_pt(m; nnls = nnls); params_liability_se(m; nnls = nnls)]
-end
-
-# Update liability scale param names to only include total heritability
-paramnames_liability_pt(m::cvc) = ["h2l"]
-paramnames_liability_se(m::cvc) = ["h2l_se"]
-paramnames_liability(m::cvc) = [paramnames_liability_pt(m); paramnames_liability_se(m)]
-
-
-function coef_liability(m::cvc; nnls = false)
-    if nnls
-        hcat(m.h2l_nn, m.h2lse_nn)
-    else
-        hcat(m.h2l, m.h2lse)
-    end
-end
-
 coefnames(m::cvc)= [["h2_$k" for k in 1:m.K]; "h2_e"; "h2"]
-coefnames_liability(m::cvc) = ["h2l"]
 
 function coef(m::cvc; nnls = false)
     if nnls
@@ -536,13 +514,22 @@ ngcomp(m::cvc) = m.K
 
 function coeftable(m::cvc; nnls = false)
     if m.model == :binary
-        # Use liability scale coefficients for binary traits (total heritability only)
+        # Always use component-specific liability scale coefficients for binary traits
         mcoefs = coef_liability(m; nnls = nnls)
         names = coefnames_liability(m)
     else
         # Use regular coefficients for other models (e.g., :tte)
         mcoefs = coef(m; nnls = nnls)
         names = coefnames(m)
+    end
+    
+    # Ensure row names match the number of rows in the coefficient matrix
+    if length(names) != size(mcoefs, 1)
+        @warn "Number of coefficient names ($(length(names))) doesn't match 
+               number of coefficients ($(size(mcoefs, 1))). Adjusting names."
+        
+        # Use default names if mismatch occurs
+        names = ["param_$i" for i in 1:size(mcoefs, 1)]
     end
     
     StatsModels.CoefTable(
@@ -643,7 +630,7 @@ function _set_estimates!(
         H2 .= 𝚽tildeg ./ totalvar_rowvec
     end
     __set_estimates!(m, nnls, Jack, h2_rowvec, h2e_rowvec, H2)
-    __set_h2l_estimates!(m, nnls, h2_rowvec)
+    __set_h2l_estimates!(m, nnls, h2_rowvec, h2e_rowvec, H2)
 end
 
 function __set_estimates!(
@@ -679,15 +666,50 @@ function __set_estimates!(
     end
 end
 
-function __set_h2l_estimates!(m::cvc, nnls::Bool, h2_rowvec::Matrix{T}) where T
+function __set_h2l_estimates!(
+    m::cvc, 
+    nnls::Bool, 
+    h2_rowvec::Matrix{T},
+    h2e_rowvec::Matrix{T},
+    H2::Matrix{T}
+    ) where T
+    
+    # Only process if we're dealing with a binary model
+    if m.model != :binary
+        return
+    end
+    
+    # Calculate liability scale conversion factor
     L = quantile(Normal(), m.cr)
-    h2l_rowvec = m.cr .* (1 .- m.cr) .* h2_rowvec ./ pdf(Normal(), L).^2
+    scale_factor = m.cr * (1.0 - m.cr) / (pdf(Normal(), L)^2)
+    
+    # Calculate total heritability on liability scale
+    h2l_rowvec = scale_factor .* h2_rowvec
+    
+    # Convert component-specific heritabilities to liability scale
+    h2kl = scale_factor .* H2
+    h2kl_e = scale_factor .* h2e_rowvec
+    
     if nnls
+        # Set NNLS total heritability
         m.h2l_nn .= h2l_rowvec[1, m.J + 1]
         m.h2lse_nn .= std(@view(h2l_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
+        
+        # Set NNLS component-specific heritability
+        copyto!(m.h2kl_nn, @view(h2kl[:, m.J+1]))
+        m.h2kl_nn[m.K + 1] = h2kl_e[1, m.J + 1]
+        copyto!(m.h2klse_nn, std(@view(h2kl[:,1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
+        m.h2klse_nn[m.K + 1] = std(@view(h2kl_e[1, 1:m.J]), corrected = false) * sqrt(m.J - 1)
     else
+        # Set regular total heritability
         m.h2l .= h2l_rowvec[1, m.J + 1]
         m.h2lse .= std(@view(h2l_rowvec[1, 1:m.J]), corrected = false) .* sqrt(m.J - 1)
+        
+        # Set regular component-specific heritability
+        copyto!(m.h2kl, @view(h2kl[:, m.J+1]))
+        m.h2kl[m.K + 1] = h2kl_e[1, m.J + 1]
+        copyto!(m.h2klse, std(@view(h2kl[:,1:m.J]), dims = 2, corrected = false) .* sqrt(m.J - 1))
+        m.h2klse[m.K + 1] = std(@view(h2kl_e[1, 1:m.J]), corrected = false) * sqrt(m.J - 1)
     end
 end
 
