@@ -342,8 +342,8 @@ function cvc(
 
     U_kj_array = Array{AbstractArray{T}, 1}(undef, J)
     Ũ_kj_array = Array{AbstractArray{T}, 1}(undef, J)
-    mmap_U_kj_array!(U_kj_array, N, B, K, temp_dir_path, parallel = true)
-    mmap_Ũ_kj_array!(Ũ_kj_array, N, B, K, temp_dir_path, parallel = true)
+    mmap_U_kj_array!(U_kj_array, N, B, K, temp_dir_path)
+    mmap_Ũ_kj_array!(Ũ_kj_array, N, B, K, temp_dir_path)
 
     HtU_jl    = Matrix{T}(undef, size(H, 2), B)
     HHtU_jl  = similar(randZ)
