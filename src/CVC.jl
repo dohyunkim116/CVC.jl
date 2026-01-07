@@ -264,7 +264,7 @@ function cvc(
     min_M_k = minimum(M_k)
     if min_M_k <= J
         J_old = J
-        J = max(10, floor(Int, min_M_k/2))  # Ensure J doesn't go below 10
+        J = max(2, floor(Int, min_M_k/2))  # Ensure J doesn't go below 2
         @info "Reducing jackknife blocks from $J_old to $J because smallest component has only $min_M_k SNPs"
     end
     
