@@ -284,9 +284,10 @@ function cvc(
     
     # Dynamically adjust J if any component has fewer SNPs than J
     min_M_k = minimum(M_k)
+    @assert min_M_k >= 2 "Each component must have at least 2 SNPs"
     if min_M_k <= J
         J_old = J
-        J = max(10, floor(Int, min_M_k/2))  # Ensure J doesn't go below 10
+        J = max(2, min_M_k)  # Ensure J doesn't go below 2
         @info "Reducing jackknife blocks from $J_old to $J because smallest component has only $min_M_k SNPs"
     end
     
