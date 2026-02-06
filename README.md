@@ -31,11 +31,11 @@ using CVC, DelimitedFiles
 # Load data
 w = readdlm("covariates.txt")  # N × p covariate matrix
 u = vec(readdlm("observed_times.txt"))  # observed event times
-δ = Bool.(vec(readdlm("censoring_indicators.txt")))  # censoring indicators
+delta = Bool.(vec(readdlm("censoring_indicators.txt")))  # censoring indicators
 temporary_directory = tempdir() # for working arrays
 
 # Fit time-to-event model with K genetic components
-cvcm = cvc(u, δ, w, "path/to/genotypes", temporary_directory)
+cvcm = cvc(u, delta, w, "path/to/genotypes", temporary_directory)
 fit_me!(cvcm)
 
 # View partitioned heritability estimates
