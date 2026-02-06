@@ -8,10 +8,10 @@ The CVC model stands for Censored Variance Component model. It is a variant of H
 
 ## Key Features
 
-- **Time-to-event (survival) data analysis** with right-censoring via synthetic variable (Leurgans and Koul-Susarla-van Ryzin estimators)
+- **Time-to-event (survival) data analysis** with right-censoring via synthetic variable (Leurgans and Koul-Susarla-Van Ryzin estimators)
 - **Partitioned heritability estimation** across K genetic components (e.g., chromosomes and gene sets)
-- **Computational efficiency** through memory-mapped PLINK files, randomized trace estimator, and column-wise block jackknife standard error estimators.
-- **Optional non-negative constrained heritability estimates** via NNLS optimization
+- **Computational efficiency** through memory-mapping, randomized trace estimator, and column-wise block jackknife standard error estimator.
+- **Non-negative constrained heritability estimates** via NNLS optimization
 
 ## Installation
 
@@ -22,8 +22,6 @@ The package is currently under development. To install, start Julia and use the 
 ```julia
 (@v1.9) pkg> add https://github.com/dohyunkim116/CVC.jl
 ```
-
-Use the backspace key to return to the Julia REPL.
 
 ## Quick Example
 
