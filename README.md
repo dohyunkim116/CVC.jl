@@ -2,7 +2,7 @@
 
 | **Documentation** | **Build Status** | **Code Coverage**  |
 |-------------------|------------------|--------------------|
-| [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://dohyunkim116.github.io/CVC.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://dohyunkim116.github.io/CVC.jl/dev/) | [![Build Status](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml?query=branch%3Amain)  | [![codecov](https://codecov.io/gh/dohyunkim116/CVC.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/dohyunkim116/CVC.jl) |  
+| [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://dohyunkim116.github.io/CVC.jl/dev/) | [![Build Status](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml?query=branch%3Amain)  | [![codecov](https://codecov.io/gh/dohyunkim116/CVC.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/dohyunkim116/CVC.jl) |  
 
 The CVC model stands for Censored Variance Component model. It is a variant of Haseman‑Elston regression for estimating partitioned heritability of censored time‑to‑event outcomes. It leverages synthetic variables and a randomized trace estimator for handling right‑censored data and analyzing large‑scale genetic data from biobanks.
 
