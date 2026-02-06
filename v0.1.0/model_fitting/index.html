@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Model Fitting · CVC.jl</title><meta name="title" content="Model Fitting · CVC.jl"/><meta property="og:title" content="Model Fitting · CVC.jl"/><meta property="twitter:title" content="Model Fitting · CVC.jl"/><meta name="description" content="Documentation for CVC.jl."/><meta property="og:description" content="Documentation for CVC.jl."/><meta property="twitter:description" content="Documentation for CVC.jl."/><meta property="og:url" content="https://dohyunkim116.github.io/CVC.jl/model_fitting/"/><meta property="twitter:url" content="https://dohyunkim116.github.io/CVC.jl/model_fitting/"/><link rel="canonical" href="https://dohyunkim116.github.io/CVC.jl/model_fitting/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">CVC.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Introduction</a></li><li class="is-active"><a class="tocitem" href>Model Fitting</a><ul class="internal"><li><a class="tocitem" href="#Basic-Usage"><span>Basic Usage</span></a></li><li><a class="tocitem" href="#Model-Parameters"><span>Model Parameters</span></a></li><li><a class="tocitem" href="#Output-Interpretation"><span>Output Interpretation</span></a></li><li><a class="tocitem" href="#Complete-Example"><span>Complete Example</span></a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Model Fitting</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Model Fitting</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/dohyunkim116/CVC.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/dohyunkim116/CVC.jl/blob/main/docs/src/model_fitting.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Model-Fitting"><a class="docs-heading-anchor" href="#Model-Fitting">Model Fitting</a><a id="Model-Fitting-1"></a><a class="docs-heading-anchor-permalink" href="#Model-Fitting" title="Permalink"></a></h1><p>This guide provides comprehensive instructions for fitting variance component models using CVC.jl.</p><h3 id="Genotype-Data"><a class="docs-heading-anchor" href="#Genotype-Data">Genotype Data</a><a id="Genotype-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Genotype-Data" title="Permalink"></a></h3><p>CVC.jl requires genotype data in <strong>partitioned PLINK format</strong>. Each genetic component must be a separate set of PLINK files:</p><pre><code class="nohighlight hljs">analysis_dir/
+├── G1.bed       # First genetic component
+├── G1.bim
+├── G1.fam
+├── G2.bed       # Second genetic component
+├── G2.bim
+├── G2.fam
+└── ...</code></pre><p><strong>Important requirements:</strong></p><ul><li>Files must be named <code>G1.bed</code>, <code>G2.bed</code>, ..., <code>GK.bed</code> (and corresponding <code>.bim</code>/<code>.fam</code>)</li><li>All <code>.fam</code> files must have identical sample ordering</li><li>Samples in <code>.fam</code> must match the order of phenotype/covariate data</li><li>SNPs should be quality-controlled before partitioning</li></ul><h3 id="Phenotype-Data"><a class="docs-heading-anchor" href="#Phenotype-Data">Phenotype Data</a><a id="Phenotype-Data-1"></a><a class="docs-heading-anchor-permalink" href="#Phenotype-Data" title="Permalink"></a></h3><p>For time-to-event phenotypes:</p><ul><li><code>u</code>: Vector of observed times (numeric, e.g., age at event or censoring)</li><li><code>delta</code>: Vector of censoring indicators (<code>true</code> = event observed, <code>false</code> = censored)</li></ul><pre><code class="language-julia hljs">using DelimitedFiles
+
+# Load time-to-event data
+u = vec(readdlm(&quot;u.txt&quot;))  # e.g., [42.3, 51.7, 38.9, ...]
+delta = Bool.(vec(readdlm(&quot;delta.txt&quot;)))  # e.g., [true, false, true, ...]</code></pre><h3 id="Covariate-Matrix"><a class="docs-heading-anchor" href="#Covariate-Matrix">Covariate Matrix</a><a id="Covariate-Matrix-1"></a><a class="docs-heading-anchor-permalink" href="#Covariate-Matrix" title="Permalink"></a></h3><p>The covariate matrix should include:</p><ul><li>Intercept (column of ones) if desired</li><li>Age, sex, principal components, etc.</li></ul><pre><code class="language-julia hljs">using DataFrames, StatsModels
+
+# Option 1: Create manually
+N = 1000
+w = [ones(N) randn(N, 10)]  # Intercept + 10 PCs
+
+# Option 2: Use StatsModels for formula-based construction
+df = DataFrame(age=randn(N), sex=rand([0,1], N), pc1=randn(N))
+f = @formula(~ 1 + age + sex + pc1)
+w = modelmatrix(f, df)</code></pre><h2 id="Basic-Usage"><a class="docs-heading-anchor" href="#Basic-Usage">Basic Usage</a><a id="Basic-Usage-1"></a><a class="docs-heading-anchor-permalink" href="#Basic-Usage" title="Permalink"></a></h2><h3 id="Initialize-and-Fit-Model"><a class="docs-heading-anchor" href="#Initialize-and-Fit-Model">Initialize and Fit Model</a><a id="Initialize-and-Fit-Model-1"></a><a class="docs-heading-anchor-permalink" href="#Initialize-and-Fit-Model" title="Permalink"></a></h3><pre><code class="language-julia hljs">using CVC
+
+# Paths
+genotype_dir = &quot;/path/to/genotypes&quot;  # Directory with G1.bed, G2.bed, etc.
+temp_dir = tempdir()  # Or specify custom temporary directory
+
+# Initialize CVC model (K genetic components determined by number of G*.bed files)
+cvcm = cvc(
+    u,    # N-vector of observed times
+    delta,          # N-vector of censoring indicators
+    w,                 # N × p covariate matrix
+    genotype_dir,      # Path to partitioned genotypes
+    temp_dir;          # Path for temporary files
+    J = 100,           # Number of jackknife blocks
+    B = 10             # Number of random Gaussian vectors
+)
+
+# Fit variance components
+fit_me!(cvcm)
+
+# Extract results
+println(&quot;Total heritability (observed scale):&quot;)
+println(&quot;  h² = &quot;, cvcm.h2[], &quot; ± &quot;, cvcm.h2se[])
+
+println(&quot;\nComponent-specific heritability:&quot;)
+for k in 1:length(cvcm.h2k)
+    println(&quot;  Component $k: &quot;, cvcm.h2k[k], &quot; ± &quot;, cvcm.h2kse[k])
+end
+
+# Variance components
+println(&quot;\nGenetic variance components: &quot;, cvcm.ϕg)
+println(&quot;Environmental variance: &quot;, cvcm.ϕe[])</code></pre><h2 id="Model-Parameters"><a class="docs-heading-anchor" href="#Model-Parameters">Model Parameters</a><a id="Model-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Model-Parameters" title="Permalink"></a></h2><h3 id="Constructor-Parameters"><a class="docs-heading-anchor" href="#Constructor-Parameters">Constructor Parameters</a><a id="Constructor-Parameters-1"></a><a class="docs-heading-anchor-permalink" href="#Constructor-Parameters" title="Permalink"></a></h3><pre><code class="language-julia hljs">cvc(u, delta, w, datapath, tempdir_parent; J=100, B=10)</code></pre><p><strong>Required arguments:</strong></p><ul><li><code>u::Vector{Float64}</code>: Observed event times</li><li><code>delta::Vector{Bool}</code>: Censoring indicators (true = event observed, false = censored)</li><li><code>w::Matrix{Float64}</code>: N × p covariate matrix (include intercept if desired)</li><li><code>datapath::String</code>: Directory containing partitioned PLINK files (G1.bed, G2.bed, ...)</li><li><code>tempdir_parent::String</code>: Parent directory for temporary files</li></ul><p><strong>Keyword arguments:</strong></p><ul><li><code>J::Int</code>: Number of jackknife blocks for standard errors (default: 100)</li><li><code>B::Int</code>: Number of random projection vectors for efficiency (default: 10)</li></ul><h2 id="Output-Interpretation"><a class="docs-heading-anchor" href="#Output-Interpretation">Output Interpretation</a><a id="Output-Interpretation-1"></a><a class="docs-heading-anchor-permalink" href="#Output-Interpretation" title="Permalink"></a></h2><h3 id="Heritability-Estimates"><a class="docs-heading-anchor" href="#Heritability-Estimates">Heritability Estimates</a><a id="Heritability-Estimates-1"></a><a class="docs-heading-anchor-permalink" href="#Heritability-Estimates" title="Permalink"></a></h3><p>For time-to-event models, results are on the <strong>observed scale</strong>:</p><ul><li><code>h2</code>: Total narrow-sense heritability</li><li><code>h2k</code>: Component-specific heritabilities (K genetic + 1 environmental)</li><li><code>ϕg</code>: Genetic variance components (length K vector)</li><li><code>ϕe</code>: Environmental variance</li><li>All estimates have corresponding <code>*se</code> fields for standard errors</li></ul><p>Interpretation: <code>h2</code> represents the proportion of variance in the survival outcome explained by genetics.</p><h3 id="Non-Negative-Estimates"><a class="docs-heading-anchor" href="#Non-Negative-Estimates">Non-Negative Estimates</a><a id="Non-Negative-Estimates-1"></a><a class="docs-heading-anchor-permalink" href="#Non-Negative-Estimates" title="Permalink"></a></h3><p>All estimates have both unconstrained and constrained versions:</p><ul><li>Regular: <code>h2</code>, <code>h2k</code>, <code>ϕg</code>, etc.</li><li>Constrained: <code>h2_nn</code>, <code>h2k_nn</code>, <code>ϕg_nn</code>, etc.</li></ul><p>Constrained estimates impose variance components to be non-negative.</p><h2 id="Complete-Example"><a class="docs-heading-anchor" href="#Complete-Example">Complete Example</a><a id="Complete-Example-1"></a><a class="docs-heading-anchor-permalink" href="#Complete-Example" title="Permalink"></a></h2><p>Here&#39;s a complete example from data loading to results:</p><pre><code class="language-julia hljs">using CVC, DelimitedFiles
+
+# Load data
+data_dir = &quot;/path/to/data&quot;
+u = vec(readdlm(joinpath(data_dir, &quot;times.txt&quot;)))
+delta = Bool.(vec(readdlm(joinpath(data_dir, &quot;delta.txt&quot;))))
+w = readdlm(joinpath(data_dir, &quot;covariates.txt&quot;))
+
+# Check data
+println(&quot;Sample size: &quot;, length(u))
+println(&quot;Censoring rate: &quot;, mean(.!delta))
+println(&quot;Number of covariates: &quot;, size(w, 2))
+
+# Initialize model
+genotype_dir = joinpath(data_dir, &quot;genotypes&quot;)
+temp_dir = mktempdir()
+
+cvcm = cvc(u, delta, w, genotype_dir, temp_dir; J=100, B=10)
+
+# Fit model
+@time fit_me!(cvcm)
+
+# Print results
+println(&quot;\n=== Total Heritability ===&quot;)
+println(&quot;h² = &quot;, round(cvcm.h2[], digits=4), &quot; ± &quot;, round(cvcm.h2se[], digits=4))
+
+println(&quot;\n=== Component-Specific Heritability ===&quot;)
+for k in 1:length(cvcm.h2k)
+    h2_k = round(cvcm.h2k[k], digits=4)
+    se_k = round(cvcm.h2kse[k], digits=4)
+    println(&quot;  Component $k: $h2_k ± $se_k&quot;)
+end
+
+println(&quot;\n=== Variance Components ===&quot;)
+for k in 1:length(cvcm.ϕg)
+    println(&quot;  Genetic (comp $k): &quot;, round(cvcm.ϕg[k], digits=4))
+end
+println(&quot;  Environmental: &quot;, round(cvcm.ϕe[], digits=4))
+
+# NNLS estimates
+println(&quot;\n=== NNLS (Non-Negative) Estimates ===&quot;)
+println(&quot;h² (NNLS) = &quot;, round(cvcm.h2_nn[], digits=4), &quot; ± &quot;, round(cvcm.h2se_nn[], digits=4))</code></pre><h3 id="Accessing-Internal-Values"><a class="docs-heading-anchor" href="#Accessing-Internal-Values">Accessing Internal Values</a><a id="Accessing-Internal-Values-1"></a><a class="docs-heading-anchor-permalink" href="#Accessing-Internal-Values" title="Permalink"></a></h3><p>The <code>cvc</code> object contains many internal fields:</p><pre><code class="language-julia hljs"># Sample information
+cvcm.nobs        # Number of observations
+cvcm.ncens       # Number censored
+cvcm.propcens    # Proportion censored
+
+# Dimensions
+cvcm.ngpred      # Number of SNPs across all components
+cvcm.nfpred      # Number of fixed effect predictors
+cvcm.ngcomp      # Number of genetic components (K)
+
+# Kaplan-Meier estimator
+cvcm.km          # KaplanMeier object</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Introduction</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Friday 6 February 2026 19:50">Friday 6 February 2026</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
