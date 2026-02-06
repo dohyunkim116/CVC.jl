@@ -4,18 +4,18 @@
 |-------------------|------------------|--------------------|
 | [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://dohyunkim116.github.io/CVC.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://dohyunkim116.github.io/CVC.jl/dev/) | [![Build Status](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml?query=branch%3Amain)  | [![codecov](https://codecov.io/gh/dohyunkim116/CVC.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/dohyunkim116/CVC.jl) |  
 
-The CVC model stands for Censored Variance Component model. It is a variant of Haseman-Elston (HE) regression for estimating partitioned heritability of censored time-to-event outcomes. It leveerages synthetic variable and randomized trace estimator for handling right-censored data and analyzing large-scale genetic data from biobank.
+The CVC model stands for Censored Variance Component model. It is a variant of Haseman‑Elston regression for estimating partitioned heritability of censored time‑to‑event outcomes. It leverages synthetic variables and a randomized trace estimator for handling right‑censored data and analyzing large‑scale genetic data from biobanks.
 
 ## Key Features
 
-- **Time-to-event (survival) data analysis** with right-censoring via synthetic variable (Leurgans and Koul-Susarla-Van Ryzin estimators)
+- **Time‑to‑event (survival) data analysis** with right‑censoring via synthetic variables (Leurgans and Koul–Susarla–Van Ryzin estimators)
 - **Partitioned heritability estimation** across K genetic components (e.g., chromosomes and gene sets)
-- **Computational efficiency** through memory-mapping, randomized trace estimator, and column-wise block jackknife standard error estimator.
-- **Non-negative constrained heritability estimates** via NNLS optimization
+- **Computational efficiency** through memory‑mapping, a randomized trace estimator, and a column‑wise block jackknife standard error estimator
+- **Non‑negative constrained heritability estimates** via NNLS optimization
 
 ## Installation
 
-This package requires Julia v1.5 or later. See the documentation for tutorial. 
+This package requires Julia v1.5 or later. See the documentation for tutorials. 
 
 The package is currently under development. To install, start Julia and use the `]` key to switch to the package manager REPL:
 
@@ -32,7 +32,7 @@ using CVC, DelimitedFiles
 w = readdlm("covariates.txt")  # N × p covariate matrix
 u = vec(readdlm("observed_times.txt"))  # observed event times
 δ = Bool.(vec(readdlm("censoring_indicators.txt")))  # censoring indicators
-temprary_directory = tempdir() # for working arrays
+temporary_directory = tempdir() # for working arrays
 
 # Fit time-to-event model with K genetic components
 cvcm = cvc(u, δ, w, "path/to/genotypes", temporary_directory)
