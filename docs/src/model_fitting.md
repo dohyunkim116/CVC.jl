@@ -27,7 +27,7 @@ analysis_dir/
 
 For time-to-event phenotypes:
 - `u`: Vector of observed times (numeric, e.g., age at event or censoring)
-- `δ`: Vector of censoring indicators (`true` = event observed, `false` = censored)
+- `delta`: Vector of censoring indicators (`true` = event observed, `false` = censored)
 
 ```julia
 using DelimitedFiles
