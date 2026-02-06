@@ -1,7 +1,7 @@
 name = "CVC"
 uuid = "89df7e7c-6d4a-4f08-8f7d-38a60cbd4ddd"
 authors = ["Do Hyun Kim"]
-version = "1.0.0-DEV"
+version = "0.1.0"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
