@@ -1,0 +1,6 @@
+[deps]
+CVC = "89df7e7c-6d4a-4f08-8f7d-38a60cbd4ddd"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+
+[compat]
+Documenter = "1"
