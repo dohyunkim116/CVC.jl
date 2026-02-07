@@ -83,7 +83,7 @@ cvcm = cvc(
 fit_me!(cvcm)
 
 # Extract results
-println("Total heritability (observed scale):")
+println("Total heritability:")
 println("  h2 = ", round(cvcm.h2[], digits=4), " ± ", round(cvcm.h2se[], digits=4))
 
 println("\nComponent-specific heritability (first 3):")
