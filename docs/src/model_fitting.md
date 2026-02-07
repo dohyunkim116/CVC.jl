@@ -1,6 +1,6 @@
 # Model Fitting
 
-This guide provides comprehensive instructions for fitting variance component models using CVC.jl.
+This guide provides instructions for fitting variance component models using CVC.jl.
 
 ### Genotype Data
 
@@ -21,6 +21,7 @@ analysis_dir/
 - Files must be named `G1.bed`, `G2.bed`, ..., `GK.bed` (and corresponding `.bim`/`.fam`)
 - All `.fam` files must have identical sample ordering
 - Samples in `.fam` must match the order of phenotype/covariate data
+- Each SNP should appear in one and only one genotype partition
 - SNPs should be quality-controlled before partitioning
 
 ### Phenotype Data
@@ -43,38 +44,38 @@ The covariate matrix should include:
 - Intercept (column of ones) if desired
 - Age, sex, principal components, etc.
 
-```julia
-using DataFrames, StatsModels
-
-# Option 1: Create manually
-N = 1000
-w = [ones(N) randn(N, 10)]  # Intercept + 10 PCs
-
-# Option 2: Use StatsModels for formula-based construction
-df = DataFrame(age=randn(N), sex=rand([0,1], N), pc1=randn(N))
-f = @formula(~ 1 + age + sex + pc1)
-w = modelmatrix(f, df)
-```
-
 ## Basic Usage
+
+The tutorial examples assume the example data are located in the repository's data folder.
 
 ### Initialize and Fit Model
 
-```julia
+```@example cvc_tutorial
 using CVC
+using DelimitedFiles
+using Random
+using Statistics
+
+Random.seed!(2025)
 
 # Paths
-genotype_dir = "/path/to/genotypes"  # Directory with G1.bed, G2.bed, etc.
+data_dir = normpath(joinpath(dirname(pathof(CVC)), "..", "data"))
+genotype_dir = data_dir  # Directory with G1.bed, G2.bed, etc.
 temp_dir = tempdir()  # Or specify custom temporary directory
 
-# Initialize CVC model (K genetic components determined by number of G*.bed files)
+# Load example data
+u = vec(readdlm(joinpath(data_dir, "u.txt")))
+delta = Bool.(vec(readdlm(joinpath(data_dir, "delta.txt"))))
+w = readdlm(joinpath(data_dir, "w.txt"))
+
+# Initialize CVC model (use short settings for reproducible docs output)
 cvcm = cvc(
     u,    # N-vector of observed times
     delta,          # N-vector of censoring indicators
     w,                 # N × p covariate matrix
     genotype_dir,      # Path to partitioned genotypes
     temp_dir;          # Path for temporary files
-    J = 100,           # Number of jackknife blocks
+    J = 100,           # Number of jackknife blocks 
     B = 10             # Number of random Gaussian vectors
 )
 
@@ -83,16 +84,25 @@ fit_me!(cvcm)
 
 # Extract results
 println("Total heritability (observed scale):")
-println("  h² = ", cvcm.h2[], " ± ", cvcm.h2se[])
+println("  h2 = ", round(cvcm.h2[], digits=4), " ± ", round(cvcm.h2se[], digits=4))
 
-println("\nComponent-specific heritability:")
-for k in 1:length(cvcm.h2k)
-    println("  Component $k: ", cvcm.h2k[k], " ± ", cvcm.h2kse[k])
+println("\nComponent-specific heritability (first 3):")
+for k in 1:min(3, length(cvcm.h2k))
+    println("  Component $k: ", round(cvcm.h2k[k], digits=4), " ± ", round(cvcm.h2kse[k], digits=4))
 end
 
 # Variance components
-println("\nGenetic variance components: ", cvcm.ϕg)
-println("Environmental variance: ", cvcm.ϕe[])
+println("\nGenetic variance components (first 3): ", round.(cvcm.ϕg[1:min(3, end)], digits=4))
+println("Environmental variance: ", round(cvcm.ϕe[], digits=4))
+
+# Check data
+println("\nSample size: ", length(u))
+println("Censoring rate: ", round(mean(.!delta), digits=4))
+println("Number of covariates: ", size(w, 2))
+
+# NNLS estimates
+println("\n=== NNLS (Non-Negative) Estimates ===")
+println("h2 (NNLS) = ", round(cvcm.h2_nn[], digits=4), " ± ", round(cvcm.h2se_nn[], digits=4))
 ```
 
 ## Model Parameters
@@ -135,55 +145,6 @@ All estimates have both unconstrained and constrained versions:
 - Constrained: `h2_nn`, `h2k_nn`, `ϕg_nn`, etc.
 
 Constrained estimates impose variance components to be non-negative.
-
-## Complete Example
-
-Here's a complete example from data loading to results:
-
-```julia
-using CVC, DelimitedFiles
-
-# Load data
-data_dir = "/path/to/data"
-u = vec(readdlm(joinpath(data_dir, "times.txt")))
-delta = Bool.(vec(readdlm(joinpath(data_dir, "delta.txt"))))
-w = readdlm(joinpath(data_dir, "covariates.txt"))
-
-# Check data
-println("Sample size: ", length(u))
-println("Censoring rate: ", mean(.!delta))
-println("Number of covariates: ", size(w, 2))
-
-# Initialize model
-genotype_dir = joinpath(data_dir, "genotypes")
-temp_dir = mktempdir()
-
-cvcm = cvc(u, delta, w, genotype_dir, temp_dir; J=100, B=10)
-
-# Fit model
-@time fit_me!(cvcm)
-
-# Print results
-println("\n=== Total Heritability ===")
-println("h² = ", round(cvcm.h2[], digits=4), " ± ", round(cvcm.h2se[], digits=4))
-
-println("\n=== Component-Specific Heritability ===")
-for k in 1:length(cvcm.h2k)
-    h2_k = round(cvcm.h2k[k], digits=4)
-    se_k = round(cvcm.h2kse[k], digits=4)
-    println("  Component $k: $h2_k ± $se_k")
-end
-
-println("\n=== Variance Components ===")
-for k in 1:length(cvcm.ϕg)
-    println("  Genetic (comp $k): ", round(cvcm.ϕg[k], digits=4))
-end
-println("  Environmental: ", round(cvcm.ϕe[], digits=4))
-
-# NNLS estimates
-println("\n=== NNLS (Non-Negative) Estimates ===")
-println("h² (NNLS) = ", round(cvcm.h2_nn[], digits=4), " ± ", round(cvcm.h2se_nn[], digits=4))
-```
 
 ### Accessing Internal Values
 

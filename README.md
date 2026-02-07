@@ -2,9 +2,11 @@
 
 | **Documentation** | **Build Status** | **Code Coverage**  |
 |-------------------|------------------|--------------------|
-| [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://dohyunkim116.github.io/CVC.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://dohyunkim116.github.io/CVC.jl/dev/) | [![Build Status](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml?query=branch%3Amain)  | [![codecov](https://codecov.io/gh/dohyunkim116/CVC.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/dohyunkim116/CVC.jl) |  
+| [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://dohyunkim116.github.io/CVC.jl/dev/) [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://dohyunkim116.github.io/CVC.jl/stable) | [![Build Status](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/dohyunkim116/CVC.jl/actions/workflows/CI.yml?query=branch%3Amain)  | [![codecov](https://codecov.io/gh/dohyunkim116/CVC.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/dohyunkim116/CVC.jl) |  
 
-The CVC model stands for Censored Variance Component model. It is a variant of Haseman‑Elston regression for estimating partitioned heritability of censored time‑to‑event outcomes. It leverages synthetic variables and a randomized trace estimator for handling right‑censored data and analyzing large‑scale genetic data from biobanks.
+> **Note:** Documentation updates appear in [dev](https://dohyunkim116.github.io/CVC.jl/dev/) first. The stable docs reflect the last tagged release.
+
+CVC stands for Censored Variance Component. It is a variant of Haseman‑Elston regression for estimating partitioned heritability of censored time‑to‑event outcomes. It leverages synthetic variables and a randomized trace estimator for handling right‑censored data and analyzing large‑scale genetic data from biobanks.
 
 ## Key Features
 
@@ -15,7 +17,7 @@ The CVC model stands for Censored Variance Component model. It is a variant of H
 
 ## Installation
 
-This package requires Julia v1.5 or later. See the documentation for tutorials. 
+This package requires Julia v1.5 or later. See the documentation for tutorials.
 
 The package is currently under development. To install, start Julia and use the `]` key to switch to the package manager REPL:
 
@@ -28,14 +30,15 @@ The package is currently under development. To install, start Julia and use the 
 ```julia
 using CVC, DelimitedFiles
 
-# Load data
-w = readdlm("covariates.txt")  # N × p covariate matrix
-u = vec(readdlm("observed_times.txt"))  # observed event times
-delta = Bool.(vec(readdlm("censoring_indicators.txt")))  # censoring indicators
-temporary_directory = tempdir() # for working arrays
+# Load example data from the repository data folder
+data_dir = joinpath(pwd(), "data")
+w = readdlm(joinpath(data_dir, "w.txt"))  # N × p covariate matrix
+u = vec(readdlm(joinpath(data_dir, "u.txt")))  # observed event times
+delta = Bool.(vec(readdlm(joinpath(data_dir, "delta.txt"))))  # censoring indicators
+temporary_directory = tempdir()  # for working arrays
 
 # Fit time-to-event model with K genetic components
-cvcm = cvc(u, delta, w, "path/to/genotypes", temporary_directory)
+cvcm = cvc(u, delta, w, data_dir, temporary_directory)
 fit_me!(cvcm)
 
 # View partitioned heritability estimates
