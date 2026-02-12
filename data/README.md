@@ -29,7 +29,7 @@ data/
 
 ### File Formats
 
-**u.txt**: N x 1 text file with observed event times
+**u.txt**: N x 1 text file with observed event times (log-scale time)
 ```
 0.935533873943533
 -10.656942253227506
@@ -39,7 +39,7 @@ data/
 
 **delta.txt**: N x 1 text file with censoring indicators
 ```
-0  # Event observed
+0  # Censored
 0  # Censored
 1  # Event observed
 ...
